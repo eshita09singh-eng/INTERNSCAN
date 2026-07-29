@@ -53,7 +53,7 @@ else:
   text_input = st.text_area(
       "Paste the Job Description text here:",
       height=150,
-      placeholder=( "Example: Urgent requirement! Earn 5000/day. Pay 500 registration fee..."),email_input = st.text_input("Recruiter's Email Address:", placeholder="hr@company.com")
+      placeholder=( "Example: Urgent requirement! Earn 5000/day. Pay 500 registration fee..."),email_input = st.text_input("Recruiter's Email Address:", placeholder="hr@company.com"))
   if st.button("🚀 Run AI Scan Risk Analysis"):
     if not text_input.strip():
       st.warning("⚠️ Please paste some text content to analyze.")
