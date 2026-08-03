@@ -163,7 +163,10 @@ else:
             st.markdown("### 📋 Risk Factor Analysis Breakdown")
             if triggered_features:
                 for feature in triggered_features:
-                    st.error(feature) if risk_score >= 50 else st.warning(feature)
+                    if risk_score >= 50:
+                        st.error(feature)
+                    else:
+                        st.warning(feature)
             else:
                 st.success("✅ No suspicious risk vectors detected in the textual structures.")
 
