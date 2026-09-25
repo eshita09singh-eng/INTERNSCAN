@@ -6,13 +6,17 @@ import streamlit as st
 DATASET_FILE = "kaggle_scams.csv"
 
 SCAM_INDICATORS = [
-    "fee", "deposit", "urgent", "pay", "whatsapp", "telegram", 
+    "fee", "deposit", "urgent", "pay", "whatsapp", "telegram",
     "registra", "rupee", "earn", "salary", "guarante", "part time",
-    "no experience", "daily income", "invest", "gpay", "phonepe", 
-    "upi", "data entry", "form fill", "crypto", "wfh", "work from home"
+    "no experience", "daily income", "invest", "gpay", "phonepe",
+    "upi", "data entry", "form fill", "crypto", "wfh", "work from home",
+    "limited slots", "immediate joining", "refundable", "security money",
+    "instant payout", "target based", "commission only", "franchise",
+    "sign up fee", "training fee", "join now", "hurry", "act fast",
 ]
 
 SUSPICIOUS_DOMAINS = ["@gmail.com", "@yahoo.com", "@outlook.com", "@hotmail.com"]
+
 
 def is_gibberish(text):
     words = text.split()
@@ -28,6 +32,9 @@ def is_gibberish(text):
 
 @st.cache_data
 def load_and_train_simulation():
+    """Loads the optional dataset used only for the sidebar analytics dashboard.
+    The scanner itself does NOT depend on this — it always works even if the
+    CSV is missing."""
     word_counts_in_scams = {indicator: 0 for indicator in SCAM_INDICATORS}
     total_records, scam_records, safe_records = 0, 0, 0
     try:
@@ -57,118 +64,141 @@ def load_and_train_simulation():
         return None
 
 
+def detect_unrealistic_financials(text_lower):
+    """Catches amounts written as '5000/day', '20k/month', '₹3000 daily',
+    'per day', 'lakh', etc. — not just plain 'daily'/'per day' phrasing."""
+    has_daily_payout_word = any(
+        p in text_lower
+        for p in ["per day", "daily", "per hour", "p/d", "daily earn", "every day"]
+    )
+
+    # patterns like "5000/day", "3k/day", "20k/month", "500rs/hour"
+    slash_pattern = re.findall(r"(\d+)\s*k?\s*/\s*(day|month|hour|hr|week)", text_lower)
+    has_slash_payout = len(slash_pattern) > 0
+
+    numbers = [int(n) for n in re.findall(r"\b\d+\b", text_lower)]
+    has_high_amount = any(num >= 10000 for num in numbers) or "k/day" in text_lower or "lakh" in text_lower
+
+    has_midsize_amount_with_payout = (
+        any(n >= 1000 for n in numbers) and (has_daily_payout_word or has_slash_payout)
+    )
+
+    return has_high_amount or has_slash_payout or has_midsize_amount_with_payout
+
+
 st.set_page_config(page_title="InternScan AI", page_icon="🛡️", layout="centered")
 st.title("🛡️ InternScan: Advanced Job Scam Detection System")
 st.write("Class 12 Corporate Security Simulation Project (Powered by NLP & Risk Analysis)")
 st.markdown("---")
 
+# --- Sidebar dataset analytics (optional, never blocks the scanner) ---
 data_results = load_and_train_simulation()
 
+st.sidebar.header("📊 Dataset Analytics Dashboard")
 if data_results is None:
-    st.error(f"❌ Critical Error: '{DATASET_FILE}' not found in this folder! Website cannot start.")
+    st.sidebar.warning(
+        f"⚠️ '{DATASET_FILE}' not found in this folder. "
+        "Sidebar analytics are unavailable, but the scanner below still works."
+    )
 else:
     trained_weights, total_rec, scam_rec, safe_rec, entropy_val = data_results
-    st.sidebar.header("📊 Dataset Analytics Dashboard")
     st.sidebar.info(f"**Total Records Trained:** {total_rec}")
     st.sidebar.success(f"**Genuine Samples:** {safe_rec}")
     st.sidebar.error(f"**Scam Samples:** {scam_rec}")
     st.sidebar.warning(f"**Dataset Entropy:** {entropy_val:.4f}")
 
-    st.subheader("🔍 Scan a New Job Posting / Email")
+# --- Scam scanner: always renders regardless of dataset availability ---
+st.subheader("🔍 Scan a New Job Posting / Email")
 
-    text_input = st.text_area(
-        "Paste the Job Description text here:",
-        height=150,
-        placeholder="Example: Urgent hiring! Earn 5000/day working from home. Pay registration fee via WhatsApp...",
-    )
+text_input = st.text_area(
+    "Paste the Job Description text here:",
+    height=150,
+    placeholder="Example: Urgent hiring! Earn 5000/day working from home. Pay registration fee via WhatsApp...",
+)
 
-    email_input = st.text_input("Recruiter's Email Address (Optional):", placeholder="hr@company.com")
+email_input = st.text_input("Recruiter's Email Address (Optional):", placeholder="hr@company.com")
 
-    if st.button("🚀 Run AI Scan Risk Analysis"):
-        if not text_input.strip():
-            st.warning("⚠️ Please paste some text content to analyze.")
-        else:
-            text_lower = text_input.lower()
-            email_lower = email_input.lower().strip()
-            words = text_lower.split()
-            word_count = len(words)
-            
-            risk_score = 0
-            triggered_features = []
+if st.button("🚀 Run AI Scan Risk Analysis"):
+    if not text_input.strip():
+        st.warning("⚠️ Please paste some text content to analyze.")
+    else:
+        text_lower = text_input.lower()
+        email_lower = email_input.lower().strip()
+        words = text_lower.split()
+        word_count = len(words)
 
-            if is_gibberish(text_input):
-                risk_score += 40
-                triggered_features.append(
-                    "⚠️ Invalid / Unstructured Text Warning: Text contains meaningless gibberish or non-standard characters."
-                )
+        risk_score = 0
+        triggered_features = []
 
-            detected_flags = [ind for ind in SCAM_INDICATORS if ind in text_lower]
-            if detected_flags:
-                impact = min(len(detected_flags) * 15, 45)
-                risk_score += impact
-                triggered_features.append(
-                    f"🚩 High-Risk Contextual Flags Found: Text contains suspicious term patterns ({', '.join(detected_flags[:3])})."
-                )
+        if is_gibberish(text_input):
+            risk_score += 40
+            triggered_features.append(
+                "⚠️ Invalid / Unstructured Text Warning: Text contains meaningless gibberish or non-standard characters."
+            )
 
-            has_chat = any(app in text_lower for app in ["whatsapp", "telegram", "dm me", "contact on", "inbox"])
-            has_payment = any(pay in text_lower for pay in ["fee", "deposit", "pay", "registra", "charge", "invest", "upi"])
-            
-            if has_chat and has_payment:
-                risk_score += 40
-                triggered_features.append(
-                    "🚨 Critical Scam Pattern: Request for payment or registration combined with off-platform contact (WhatsApp/Telegram)."
-                )
+        detected_flags = [ind for ind in SCAM_INDICATORS if ind in text_lower]
+        if detected_flags:
+            impact = min(len(detected_flags) * 15, 45)
+            risk_score += impact
+            triggered_features.append(
+                f"🚩 High-Risk Contextual Flags Found: Text contains suspicious term patterns ({', '.join(detected_flags[:5])})."
+            )
 
-            numbers = [int(n) for n in re.findall(r"\b\d+\b", text_lower)]
-            has_high_amount = any(num >= 10000 for num in numbers) or "k/day" in text_lower or "lakh" in text_lower
-            has_daily_payout = any(p in text_lower for p in ["per day", "daily", "per hour", "p/d", "daily earn", "every day"])
-            
-            if has_high_amount or (any(n >= 3000 for n in numbers) and has_daily_payout):
-                risk_score += 35
-                triggered_features.append(
-                    "💰 Unrealistic Financial Promise: High daily payout or unreasonable salary rates detected."
-                )
+        has_chat = any(app in text_lower for app in ["whatsapp", "telegram", "dm me", "contact on", "inbox"])
+        has_payment = any(pay in text_lower for pay in ["fee", "deposit", "pay", "registra", "charge", "invest", "upi"])
 
-            if email_lower:
-                if any(domain in email_lower for domain in SUSPICIOUS_DOMAINS):
-                    risk_score += 25
-                    triggered_features.append(
-                        f"📧 Public Domain Alert: Recruiter email '{email_lower}' uses a free public provider instead of a verified company domain."
-                    )
-            elif "gmail.com" in text_lower or "yahoo.com" in text_lower:
-                risk_score += 15
-                triggered_features.append("📧 Contact email in description uses a free public domain.")
+        if has_chat and has_payment:
+            risk_score += 40
+            triggered_features.append(
+                "🚨 Critical Scam Pattern: Request for payment or registration combined with off-platform contact (WhatsApp/Telegram)."
+            )
 
-            if word_count < 12 and not is_gibberish(text_input):
+        if detect_unrealistic_financials(text_lower):
+            risk_score += 35
+            triggered_features.append(
+                "💰 Unrealistic Financial Promise: High daily/hourly payout or unreasonable salary rates detected."
+            )
+
+        if email_lower:
+            if any(domain in email_lower for domain in SUSPICIOUS_DOMAINS):
                 risk_score += 25
                 triggered_features.append(
-                    f"⚠️ Incomplete Job Listing: Description is too brief ({word_count} words). Authentic roles provide detailed responsibilities."
+                    f"📧 Public Domain Alert: Recruiter email '{email_lower}' uses a free public provider instead of a verified company domain."
                 )
+        elif "gmail.com" in text_lower or "yahoo.com" in text_lower:
+            risk_score += 15
+            triggered_features.append("📧 Contact email in description uses a free public domain.")
 
-            risk_score = min(risk_score, 100)
+        if word_count < 12 and not is_gibberish(text_input):
+            risk_score += 25
+            triggered_features.append(
+                f"⚠️ Incomplete Job Listing: Description is too brief ({word_count} words). Authentic roles provide detailed responsibilities."
+            )
 
-            st.markdown("---")
-            st.subheader("🎯 Scan Evaluation Report")
+        risk_score = min(risk_score, 100)
 
-            st.write(f"**Aggregated Risk Index: {risk_score}%**")
-            st.progress(risk_score / 100)
+        st.markdown("---")
+        st.subheader("🎯 Scan Evaluation Report")
 
-            if risk_score >= 50:
-                st.error("🚨 Final Classification Verdict: [ HIGH RISK / LIKELY FRAUD ]")
-            elif risk_score >= 25:
-                st.warning("⚠️ Final Classification Verdict: [ MODERATE RISK / CAUTION REQUIRED ]")
-            else:
-                st.success("✅ Final Classification Verdict: [ LOW RISK / SAFE LISTING ]")
+        st.write(f"**Aggregated Risk Index: {risk_score}%**")
+        st.progress(risk_score / 100)
 
-            st.markdown("### 📋 Risk Factor Analysis Breakdown")
-            if triggered_features:
-                for feature in triggered_features:
-                    if risk_score >= 50:
-                        st.error(feature)
-                    else:
-                        st.warning(feature)
-            else:
-                st.success("✅ No suspicious risk vectors detected in the textual structures.")
+        if risk_score >= 50:
+            st.error("🚨 Final Classification Verdict: [ HIGH RISK / LIKELY FRAUD ]")
+        elif risk_score >= 25:
+            st.warning("⚠️ Final Classification Verdict: [ MODERATE RISK / CAUTION REQUIRED ]")
+        else:
+            st.success("✅ Final Classification Verdict: [ LOW RISK / SAFE LISTING ]")
+
+        st.markdown("### 📋 Risk Factor Analysis Breakdown")
+        if triggered_features:
+            for feature in triggered_features:
+                if risk_score >= 50:
+                    st.error(feature)
+                else:
+                    st.warning(feature)
+        else:
+            st.success("✅ No suspicious risk vectors detected in the textual structures.")
 
 st.markdown("---")
 st.header("🚀 Career Growth Hub")
