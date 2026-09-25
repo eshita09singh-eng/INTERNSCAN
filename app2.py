@@ -1,4 +1,3 @@
-python
 import csv
 import math
 import re
@@ -6,8 +5,6 @@ import streamlit as st
 
 DATASET_FILE = "kaggle_scams.csv"
 
-# Scam indicators
-# Removed common words that can appear in legitimate job postings
 SCAM_INDICATORS = [
     "fee", "deposit", "urgent", "whatsapp", "telegram",
     "registra", "guarante", "daily income", "invest",
@@ -20,41 +17,35 @@ SCAM_INDICATORS = [
 ]
 
 SUSPICIOUS_DOMAINS = [
-    "@gmail.com",
-    "@yahoo.com",
-    "@outlook.com",
-    "@hotmail.com"
+    "@gmail.com", "@yahoo.com", "@outlook.com", "@hotmail.com"
 ]
 
 
 def is_gibberish(text):
     words = text.split()
-
     if not words:
         return True
 
     gibberish_count = 0
 
-    for w in words:
-        clean_w = re.sub(r'[^a-zA-Z]', '', w.lower())
+    for word in words:
+        clean_word = re.sub(r"[^a-zA-Z]", "", word.lower())
 
-        if len(clean_w) > 3 and not re.search(r'[aeiouy]', clean_w):
+        if len(clean_word) > 3 and not re.search(r"[aeiouy]", clean_word):
             gibberish_count += 1
 
-    return (gibberish_count / len(words)) > 0.3 if len(words) > 0 else False
+    return (gibberish_count / len(words)) > 0.3
 
 
 @st.cache_data
 def load_and_train_simulation():
-    """Loads the optional dataset used only for the sidebar analytics dashboard.
-    The scanner itself does NOT depend on this — it always works even if the CSV is missing.
-    """
-
     word_counts_in_scams = {
         indicator: 0 for indicator in SCAM_INDICATORS
     }
 
-    total_records, scam_records, safe_records = 0, 0, 0
+    total_records = 0
+    scam_records = 0
+    safe_records = 0
 
     try:
         with open(
@@ -68,21 +59,19 @@ def load_and_train_simulation():
             next(csv_reader, None)
 
             for row in csv_reader:
-
                 if not row or len(row) < 2:
                     continue
 
                 total_records += 1
 
                 if row[1].strip() == "1":
-
                     scam_records += 1
 
+                    description = row[0].lower()
+
                     for indicator in SCAM_INDICATORS:
-
-                        if indicator in row[0].lower():
+                        if indicator in description:
                             word_counts_in_scams[indicator] += 1
-
                 else:
                     safe_records += 1
 
@@ -118,11 +107,9 @@ def load_and_train_simulation():
 
 
 def detect_unrealistic_financials(text_lower):
-    """Detects suspicious salary/payment patterns."""
-
     has_daily_payout_word = any(
-        p in text_lower
-        for p in [
+        phrase in text_lower
+        for phrase in [
             "per day",
             "daily",
             "per hour",
@@ -132,31 +119,26 @@ def detect_unrealistic_financials(text_lower):
         ]
     )
 
-    # Patterns like:
-    # 5000/day
-    # 3k/day
-    # 20k/month
-    # 500rs/hour
     slash_pattern = re.findall(
         r"(\d+)\s*k?\s*/\s*(day|month|hour|hr|week)",
         text_lower
     )
 
-    has_slash_payout = len(slash_pattern) > 0
+    has_slash_payout = bool(slash_pattern)
 
     numbers = [
-        int(n)
-        for n in re.findall(r"\b\d+\b", text_lower)
+        int(number)
+        for number in re.findall(r"\b\d+\b", text_lower)
     ]
 
     has_high_amount = (
-        any(num >= 10000 for num in numbers)
+        any(number >= 10000 for number in numbers)
         or "k/day" in text_lower
         or "lakh" in text_lower
     )
 
     has_midsize_amount_with_payout = (
-        any(n >= 1000 for n in numbers)
+        any(number >= 1000 for number in numbers)
         and (has_daily_payout_word or has_slash_payout)
     )
 
@@ -167,10 +149,6 @@ def detect_unrealistic_financials(text_lower):
     )
 
 
-# ---------------------------------------------------------
-# STREAMLIT APP
-# ---------------------------------------------------------
-
 st.set_page_config(
     page_title="InternScan AI",
     page_icon="🛡️",
@@ -178,54 +156,30 @@ st.set_page_config(
 )
 
 st.title("🛡️ InternScan: Advanced Job Scam Detection System")
-
 st.write(
     "Class 12 Corporate Security Simulation Project "
     "(Powered by NLP & Risk Analysis)"
 )
-
 st.markdown("---")
 
-
-# ---------------------------------------------------------
-# SIDEBAR DATASET ANALYTICS
-# ---------------------------------------------------------
 
 data_results = load_and_train_simulation()
 
 st.sidebar.header("📊 Dataset Analytics Dashboard")
 
 if data_results is None:
-
     st.sidebar.warning(
         f"⚠️ '{DATASET_FILE}' not found in this folder. "
         "Sidebar analytics are unavailable, but the scanner below still works."
     )
-
 else:
-
     trained_weights, total_rec, scam_rec, safe_rec, entropy_val = data_results
 
-    st.sidebar.info(
-        f"**Total Records Trained:** {total_rec}"
-    )
+    st.sidebar.info(f"**Total Records Trained:** {total_rec}")
+    st.sidebar.success(f"**Genuine Samples:** {safe_rec}")
+    st.sidebar.error(f"**Scam Samples:** {scam_rec}")
+    st.sidebar.warning(f"**Dataset Entropy:** {entropy_val:.4f}")
 
-    st.sidebar.success(
-        f"**Genuine Samples:** {safe_rec}"
-    )
-
-    st.sidebar.error(
-        f"**Scam Samples:** {scam_rec}"
-    )
-
-    st.sidebar.warning(
-        f"**Dataset Entropy:** {entropy_val:.4f}"
-    )
-
-
-# ---------------------------------------------------------
-# SCAM SCANNER
-# ---------------------------------------------------------
 
 st.subheader("🔍 Scan a New Job Posting / Email")
 
@@ -233,8 +187,8 @@ text_input = st.text_area(
     "Paste the Job Description text here:",
     height=150,
     placeholder=(
-        "Example: Urgent hiring! Earn 5000/day working from "
-        "home. Pay registration fee via WhatsApp..."
+        "Example: Urgent hiring! Earn 5000/day working from home. "
+        "Pay registration fee via WhatsApp..."
     )
 )
 
@@ -247,31 +201,16 @@ email_input = st.text_input(
 if st.button("🚀 Run AI Scan Risk Analysis"):
 
     if not text_input.strip():
-
-        st.warning(
-            "⚠️ Please paste some text content to analyze."
-        )
+        st.warning("⚠️ Please paste some text content to analyze.")
 
     else:
-
         text_lower = text_input.lower()
         email_lower = email_input.lower().strip()
 
-        words = text_lower.split()
-        word_count = len(words)
-
-        # Risk score starts at zero
         risk_score = 0
-
         triggered_features = []
 
-
-        # -------------------------------------------------
-        # 1. GIBBERISH DETECTION
-        # -------------------------------------------------
-
         if is_gibberish(text_input):
-
             risk_score += 40
 
             triggered_features.append(
@@ -279,26 +218,14 @@ if st.button("🚀 Run AI Scan Risk Analysis"):
                 "Text contains meaningless gibberish or non-standard characters."
             )
 
-
-        # -------------------------------------------------
-        # 2. SCAM INDICATORS
-        # -------------------------------------------------
-
         detected_flags = [
-            ind
-            for ind in SCAM_INDICATORS
-            if ind in text_lower
+            indicator
+            for indicator in SCAM_INDICATORS
+            if indicator in text_lower
         ]
 
         if detected_flags:
-
-            # Reduced from 15 points per indicator
-            # to 5 points per indicator
-            impact = min(
-                len(detected_flags) * 5,
-                25
-            )
-
+            impact = min(len(detected_flags) * 5, 25)
             risk_score += impact
 
             triggered_features.append(
@@ -306,11 +233,6 @@ if st.button("🚀 Run AI Scan Risk Analysis"):
                 f"Text contains suspicious term patterns "
                 f"({', '.join(detected_flags[:5])})."
             )
-
-
-        # -------------------------------------------------
-        # 3. PAYMENT + OFF-PLATFORM CONTACT
-        # -------------------------------------------------
 
         has_chat = any(
             app in text_lower
@@ -324,8 +246,8 @@ if st.button("🚀 Run AI Scan Risk Analysis"):
         )
 
         has_payment = any(
-            pay in text_lower
-            for pay in [
+            payment in text_lower
+            for payment in [
                 "fee",
                 "deposit",
                 "pay",
@@ -336,12 +258,7 @@ if st.button("🚀 Run AI Scan Risk Analysis"):
             ]
         )
 
-        # This remains a strong indicator because
-        # payment request + off-platform contact
-        # is much more suspicious than either alone.
-
         if has_chat and has_payment:
-
             risk_score += 40
 
             triggered_features.append(
@@ -350,188 +267,95 @@ if st.button("🚀 Run AI Scan Risk Analysis"):
                 "with off-platform contact (WhatsApp/Telegram)."
             )
 
-
-        # -------------------------------------------------
-        # 4. UNREALISTIC FINANCIAL PROMISES
-        # -------------------------------------------------
-
         if detect_unrealistic_financials(text_lower):
-
             risk_score += 35
 
             triggered_features.append(
                 "💰 Unrealistic Financial Promise: "
-                "High daily/hourly payout or unreasonable "
-                "salary rates detected."
+                "High daily/hourly payout or unreasonable salary rates detected."
             )
 
-
-        # -------------------------------------------------
-        # 5. EMAIL CHECK
-        # -------------------------------------------------
-
         if email_lower:
-
             if any(
                 domain in email_lower
                 for domain in SUSPICIOUS_DOMAINS
             ):
-
-                # Reduced from 25 to 10
-                # because Gmail/Yahoo alone does NOT mean scam
                 risk_score += 10
 
                 triggered_features.append(
                     f"📧 Public Domain Alert: Recruiter email "
-                    f"'{email_lower}' uses a free public provider "
-                    f"instead of a verified company domain."
+                    f"'{email_lower}' uses a free public provider. "
+                    "This is only a warning and does not mean the job is a scam."
                 )
 
-        elif (
-            "gmail.com" in text_lower
-            or "yahoo.com" in text_lower
-        ):
-
-            # Reduced from 15 to 5
+        elif "gmail.com" in text_lower or "yahoo.com" in text_lower:
             risk_score += 5
 
             triggered_features.append(
-                "📧 Contact email in description uses "
-                "a free public domain."
+                "📧 Contact email in description uses a free public domain. "
+                "This is only a warning."
             )
 
-
-        # -------------------------------------------------
-        # SHORT DESCRIPTION PENALTY REMOVED
-        # -------------------------------------------------
-        # A short job description does NOT automatically
-        # mean the job is a scam.
-
-
-        # -------------------------------------------------
-        # FINAL SCORE
-        # -------------------------------------------------
-
-        risk_score = min(
-            risk_score,
-            100
-        )
-
-
-        # -------------------------------------------------
-        # RESULT
-        # -------------------------------------------------
+        risk_score = min(risk_score, 100)
 
         st.markdown("---")
+        st.subheader("🎯 Scan Evaluation Report")
 
-        st.subheader(
-            "🎯 Scan Evaluation Report"
-        )
-
-        # IMPORTANT:
-        # This is a risk score, NOT a true probability.
-
-        st.write(
-            f"**Aggregated Risk Score: {risk_score}/100**"
-        )
-
-        st.progress(
-            risk_score / 100
-        )
-
-
-        # -------------------------------------------------
-        # CLASSIFICATION
-        # -------------------------------------------------
+        st.write(f"**Aggregated Risk Score: {risk_score}/100**")
+        st.progress(risk_score / 100)
 
         if risk_score >= 50:
-
             st.error(
                 "🚨 Final Classification Verdict: "
                 "[ HIGH RISK / LIKELY FRAUD ]"
             )
-
         elif risk_score >= 25:
-
             st.warning(
                 "⚠️ Final Classification Verdict: "
                 "[ MODERATE RISK / CAUTION REQUIRED ]"
             )
-
         else:
-
             st.success(
                 "✅ Final Classification Verdict: "
                 "[ LOW RISK / LIKELY SAFE ]"
             )
 
-
-        # -------------------------------------------------
-        # RISK FACTORS
-        # -------------------------------------------------
-
-        st.markdown(
-            "### 📋 Risk Factor Analysis Breakdown"
-        )
+        st.markdown("### 📋 Risk Factor Analysis Breakdown")
 
         if triggered_features:
-
             for feature in triggered_features:
-
                 if risk_score >= 50:
-
                     st.error(feature)
-
                 else:
-
                     st.warning(feature)
-
         else:
-
             st.success(
                 "✅ No suspicious risk vectors detected "
                 "in the textual structures."
             )
 
 
-# ---------------------------------------------------------
-# CAREER GROWTH HUB
-# ---------------------------------------------------------
-
 st.markdown("---")
-
 st.header("🚀 Career Growth Hub")
-
 st.write(
-    "Improve your LinkedIn profile and discover skills, "
-    "projects, and certifications to increase your "
-    "internship opportunities."
+    "Improve your LinkedIn profile and discover skills, projects, "
+    "and certifications to increase your internship opportunities."
 )
 
 
 career_data = {
-
     "Artificial Intelligence": {
-
         "skills": [
-            "python",
-            "machine learning",
-            "deep learning",
-            "pandas",
-            "numpy",
-            "sql",
-            "tensorflow",
-            "data analysis",
-            "git"
+            "python", "machine learning", "deep learning",
+            "pandas", "numpy", "sql", "tensorflow",
+            "data analysis", "git"
         ],
-
         "certificates": [
             "Google AI Essentials",
             "IBM AI Fundamentals",
             "Kaggle Python",
             "AWS Machine Learning Foundations"
         ],
-
         "projects": [
             "Job Scam Detection",
             "House Price Prediction",
@@ -539,28 +363,17 @@ career_data = {
             "Face Mask Detection"
         ],
     },
-
-
     "Data Science": {
-
         "skills": [
-            "python",
-            "pandas",
-            "numpy",
-            "sql",
-            "excel",
-            "power bi",
-            "statistics",
-            "data visualization"
+            "python", "pandas", "numpy", "sql", "excel",
+            "power bi", "statistics", "data visualization"
         ],
-
         "certificates": [
             "Google Data Analytics",
             "IBM Data Science Professional Certificate",
             "Kaggle Data Cleaning",
             "Microsoft Power BI"
         ],
-
         "projects": [
             "Sales Dashboard",
             "Customer Segmentation",
@@ -568,25 +381,16 @@ career_data = {
             "Titanic Prediction"
         ],
     },
-
-
     "Web Development": {
-
         "skills": [
-            "html",
-            "css",
-            "javascript",
-            "react",
-            "git",
-            "node.js"
+            "html", "css", "javascript", "react",
+            "git", "node.js"
         ],
-
         "certificates": [
             "Meta Front-End Developer",
             "freeCodeCamp Responsive Web Design",
             "JavaScript Algorithms"
         ],
-
         "projects": [
             "Portfolio Website",
             "Weather App",
@@ -594,24 +398,16 @@ career_data = {
             "E-commerce Website"
         ],
     },
-
-
     "Cybersecurity": {
-
         "skills": [
-            "network security",
-            "linux",
-            "python",
-            "wireshark",
-            "ethical hacking"
+            "network security", "linux", "python",
+            "wireshark", "ethical hacking"
         ],
-
         "certificates": [
             "Google Cybersecurity",
             "Cisco Networking Academy",
             "TryHackMe Beginner Path"
         ],
-
         "projects": [
             "Password Strength Checker",
             "Network Scanner",
@@ -627,12 +423,10 @@ career = st.selectbox(
     list(career_data.keys())
 )
 
-
 headline = st.text_input(
     "LinkedIn Headline",
     placeholder="Example: AI Student | Python Developer"
 )
-
 
 skills = st.text_area(
     "Enter Your Skills (comma separated)",
@@ -648,14 +442,10 @@ if st.button("🚀 Analyze LinkedIn Profile"):
         if skill.strip()
     ]
 
-
     score = 0
 
-
     if len(headline) >= 15:
-
         score += 30
-
 
     matched_skills = [
         skill
@@ -663,23 +453,12 @@ if st.button("🚀 Analyze LinkedIn Profile"):
         if skill.lower() in user_skills
     ]
 
-
-    score += min(
-        len(matched_skills) * 5,
-        50
-    )
-
+    score += min(len(matched_skills) * 5, 50)
 
     if len(user_skills) >= 5:
-
         score += 20
 
-
-    score = min(
-        score,
-        100
-    )
-
+    score = min(score, 100)
 
     missing_skills = [
         skill
@@ -687,104 +466,49 @@ if st.button("🚀 Analyze LinkedIn Profile"):
         if skill.lower() not in user_skills
     ]
 
-
     st.markdown("---")
+    st.subheader("📊 LinkedIn Profile Score")
 
-    st.subheader(
-        "📊 LinkedIn Profile Score"
-    )
-
-    st.progress(
-        score / 100
-    )
-
-    st.metric(
-        "Profile Score",
-        f"{score}/100"
-    )
-
+    st.progress(score / 100)
+    st.metric("Profile Score", f"{score}/100")
 
     if score >= 80:
-
         st.success(
-            "Excellent LinkedIn Profile! "
-            "You're internship-ready."
+            "Excellent LinkedIn Profile! You're internship-ready."
         )
-
     elif score >= 60:
-
         st.info(
-            "Good profile. A few improvements "
-            "can make it stronger."
+            "Good profile. A few improvements can make it stronger."
         )
-
     else:
-
         st.warning(
-            "Your profile needs improvement "
-            "to attract recruiters."
+            "Your profile needs improvement to attract recruiters."
         )
 
-
-    st.subheader(
-        "✅ Skills Found"
-    )
-
+    st.subheader("✅ Skills Found")
 
     if matched_skills:
-
         for skill in matched_skills:
-
-            st.success(
-                skill.title()
-            )
-
+            st.success(skill.title())
     else:
+        st.warning("No relevant skills detected.")
 
-        st.warning(
-            "No relevant skills detected."
-        )
-
-
-    st.subheader(
-        "⚠ Missing Skills"
-    )
-
+    st.subheader("⚠ Missing Skills")
 
     if missing_skills:
-
         for skill in missing_skills:
-
-            st.error(
-                skill.title()
-            )
-
+            st.error(skill.title())
     else:
+        st.success("Amazing! No important skills missing.")
 
-        st.success(
-            "Amazing! No important skills missing."
-        )
-
-
-    st.subheader(
-        "🎓 Recommended Certifications"
-    )
+    st.subheader("🎓 Recommended Certifications")
 
     for cert in career_data[career]["certificates"]:
+        st.write("•", cert)
 
-        st.write(
-            "•",
-            cert
-        )
-
-
-    st.subheader(
-        "💻 Recommended Projects"
-    )
+    st.subheader("💻 Recommended Projects")
 
     for project in career_data[career]["projects"]:
+        st.write("•", project)0rs/hour
 
-        st.write(
-            "•",
-            project )
 
