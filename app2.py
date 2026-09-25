@@ -1,4 +1,4 @@
-```python
+python
 import csv
 import math
 import re
@@ -786,6 +786,5 @@ if st.button("🚀 Analyze LinkedIn Profile"):
 
         st.write(
             "•",
-            project
-        )
-```
+            project )
+
