@@ -509,6 +509,6 @@ if st.button("🚀 Analyze LinkedIn Profile"):
     st.subheader("💻 Recommended Projects")
 
     for project in career_data[career]["projects"]:
-        st.write("•", project)0rs/hour
+        st.write("•", project)
 
 
