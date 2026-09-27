@@ -2,7 +2,7 @@ import csv
 import math
 import re
 import streamlit as st
-from google import genai
+import google.generativeai as genai
 
 DATASET_FILE = "kaggle_scams.csv"
 
@@ -87,7 +87,8 @@ def load_and_train_simulation():
 
 def analyze_with_ai(job_text, recruiter_email, api_key):
     try:
-        client = genai.Client(api_key=api_key)
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""
         You are an expert AI Job Scam Detector for student internships.
         Analyze the following job description and recruiter details carefully.
@@ -111,10 +112,7 @@ def analyze_with_ai(job_text, recruiter_email, api_key):
         - <Reason 2>
         - <Reason 3>
         """
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt
-        )
+        response = model.generate_content(prompt)
         return response.text
     except Exception as e:
         return f"AI Error: {str(e)}"
