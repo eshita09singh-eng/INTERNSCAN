@@ -1,352 +1,205 @@
 import csv
 import math
-import re
 import streamlit as st
 from google import genai
 
+# Class 12 CS Configuration & Data Assets
 DATASET_FILE = "kaggle_scams.csv"
-
-SCAM_INDICATORS = [
-    "fee", "deposit", "urgent", "whatsapp", "telegram",
-    "registra", "guarante", "daily income", "invest",
-    "gpay", "phonepe", "upi", "data entry", "form fill",
-    "crypto", "wfh", "work from home", "limited slots",
-    "immediate joining", "refundable", "security money",
-    "instant payout", "target based", "commission only",
-    "franchise", "sign up fee", "training fee",
-    "join now", "hurry", "act fast"
+SCAM_KEYWORDS = [
+    "scam",
+    "fee",
+    "deposit",
+    "urgent",
+    "pay",
+    "whatsapp",
+    "telegram",
+    "registration",
+    "rupees",
+    "earn",
+    "guaranteed",
 ]
-
-SUSPICIOUS_DOMAINS = [
-    "@gmail.com", "@yahoo.com", "@outlook.com", "@hotmail.com"
-]
+SUSPICIOUS_DOMAINS = ["@gmail.com", "@yahoo.com", "@outlook.com"]
 
 
-def is_gibberish(text):
-    words = text.split()
-    if not words:
-        return True
-
-    gibberish_count = 0
-    for word in words:
-        clean_word = re.sub(r"[^a-zA-Z]", "", word.lower())
-        if len(clean_word) > 3 and not re.search(r"[aeiouy]", clean_word):
-            gibberish_count += 1
-
-    return (gibberish_count / len(words)) > 0.3 if len(words) > 0 else False
-
-
+# 1. Dataset Reader (CSV File Handling)
 @st.cache_data
 def load_and_train_simulation():
-    word_counts_in_scams = {indicator: 0 for indicator in SCAM_INDICATORS}
-    total_records, scam_records, safe_records = 0, 0, 0
+  word_counts_in_scams = {word: 0 for word in SCAM_KEYWORDS}
+  total_records, scam_records, safe_records = 0, 0, 0
+  try:
+    with open(
+        DATASET_FILE, mode="r", encoding="latin-1", errors="ignore"
+    ) as file:
+      csv_reader = csv.reader(file)
+      next(csv_reader, None)
+      for row in csv_reader:
+        if not row or len(row) < 2:
+          continue
+        total_records += 1
+        if row[1].strip() == "1":
+          scam_records += 1
+          for word in SCAM_KEYWORDS:
+            if word in row[0].lower():
+              word_counts_in_scams[word] += 1
+        else:
+          safe_records += 1
 
-    try:
-        with open(
-            DATASET_FILE,
-            mode="r",
-            encoding="latin-1",
-            errors="ignore"
-        ) as file:
-            csv_reader = csv.reader(file)
-            next(csv_reader, None)
-
-            for row in csv_reader:
-                if not row or len(row) < 2:
-                    continue
-                total_records += 1
-                if row[1].strip() == "1":
-                    scam_records += 1
-                    description = row[0].lower()
-                    for indicator in SCAM_INDICATORS:
-                        if indicator in description:
-                            word_counts_in_scams[indicator] += 1
-                else:
-                    safe_records += 1
-
-        p_scam = scam_records / total_records if total_records > 0 else 0
-        p_safe = safe_records / total_records if total_records > 0 else 0
-
-        entropy = (
-            -(p_scam * math.log2(p_scam) + p_safe * math.log2(p_safe))
-            if p_scam > 0 and p_safe > 0
-            else 0
-        )
-
-        return (
-            word_counts_in_scams,
-            total_records,
-            scam_records,
-            safe_records,
-            entropy
-        )
-
-    except FileNotFoundError:
-        return None
+    p_scam = scam_records / total_records if total_records > 0 else 0
+    p_safe = safe_records / total_records if total_records > 0 else 0
+    entropy = (
+        -(p_scam * math.log2(p_scam) + p_safe * math.log2(p_safe))
+        if p_scam > 0 and p_safe > 0
+        else 0
+    )
+    return (
+        word_counts_in_scams,
+        total_records,
+        scam_records,
+        safe_records,
+        entropy,
+    )
+  except FileNotFoundError:
+    return None
 
 
-def analyze_with_ai(job_text, recruiter_email, api_key):
-    try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        prompt = f"""
-        You are an expert AI Job Scam Detector for student internships.
-        Analyze the following job description and recruiter details carefully.
-
-        Job Description:
-        "{job_text}"
-
-        Recruiter Email:
-        "{recruiter_email if recruiter_email else 'Not provided'}"
-
-        Instructions:
-        1. Read the text thoroughly and determine if it is a legitimate job opportunity or a recruitment scam.
-        2. Assign a precise Risk Score between 0% (Completely Safe) and 100% (High Scam Risk).
-        3. Explain the exact logical reasons behind your risk evaluation.
-        
-        Provide response in this exact structured format:
-        RISK_SCORE: <integer 0 to 100>
-        VERDICT: <HIGH RISK / MODERATE RISK / LOW RISK>
-        REASONS:
-        - <Reason 1>
-        - <Reason 2>
-        - <Reason 3>
-        """
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"AI Error: {str(e)}"
-
-
+# Streamlit UI Configuration
 st.set_page_config(
-    page_title="InternScan AI",
-    page_icon="🛡️",
-    layout="centered"
+    page_title="InternScan AI", page_icon="🛡️", layout="centered"
 )
-
-st.title("🛡️ InternScan: Advanced Job Scam Detection System")
-st.write(
-    "Class 12 Corporate Security Simulation Project "
-    "(Powered by Gemini AI & Risk Analysis)"
-)
+st.title("🛡️ InternScan: Job Scam Detection System")
+st.write("Class 12 Project (Powered by Heuristic Analysis & Gemini AI)")
 st.markdown("---")
 
-api_key_input = st.sidebar.text_input(
-    "🔑 Enter Gemini API Key (For AI Engine):",
+# Sidebar - API Key Input & Dataset Analytics
+st.sidebar.header("🔑 API Settings")
+user_api_key = st.sidebar.text_input(
+    "Enter Gemini API Key (For AI Engine):",
     type="password",
-    help="Get a free key from aistudio.google.com"
+    help="Get a free key from Google AI Studio",
 )
 
 data_results = load_and_train_simulation()
 
-st.sidebar.header("📊 Dataset Analytics Dashboard")
-
 if data_results is None:
-    st.sidebar.warning(
-        f"⚠️ '{DATASET_FILE}' not found in this folder. "
-        "Sidebar analytics are unavailable, but the scanner below still works."
-    )
+  st.error(f"❌ Error: '{DATASET_FILE}' not found in the directory!")
 else:
-    trained_weights, total_rec, scam_rec, safe_rec, entropy_val = data_results
-    st.sidebar.info(f"**Total Records Trained:** {total_rec}")
-    st.sidebar.success(f"**Genuine Samples:** {safe_rec}")
-    st.sidebar.error(f"**Scam Samples:** {scam_rec}")
-    st.sidebar.warning(f"**Dataset Entropy:** {entropy_val:.4f}")
+  trained_weights, total_rec, scam_rec, safe_rec, entropy_val = data_results
 
+  st.sidebar.markdown("---")
+  st.sidebar.header("📊 Dataset Analytics Dashboard")
+  st.sidebar.info(f"**Total Records Trained:** {total_rec}")
+  st.sidebar.success(f"**Genuine Samples:** {safe_rec}")
+  st.sidebar.error(f"**Scam Samples:** {scam_rec}")
+  st.sidebar.warning(f"**Dataset Entropy:** {entropy_val:.4f}")
 
-st.subheader("🔍 Scan a New Job Posting / Email")
+  # Main User Form
+  st.subheader("🔍 Scan a New Job Posting / Email")
+  text_input = st.text_area(
+      "Paste the Job Description text here:",
+      height=150,
+      placeholder="Example: Urgent requirement! Earn 5000/day. Pay registration fee...",
+  )
+  email_input = st.text_input(
+      "Recruiter's Email Address (Optional):", placeholder="hr@company.com"
+  )
 
-text_input = st.text_area(
-    "Paste the Job Description text here:",
-    height=150,
-    placeholder=(
-        "Example: Urgent hiring! Earn 5000/day working from home. "
-        "Pay registration fee via WhatsApp..."
-    )
-)
-
-email_input = st.text_input(
-    "Recruiter's Email Address (Optional):",
-    placeholder="hr@company.com"
-)
-
-
-if st.button("🚀 Run AI Scan Risk Analysis"):
-
+  if st.button("🚀 Run AI Scan Risk Analysis"):
     if not text_input.strip():
-        st.warning("⚠️ Please paste some text content to analyze.")
-
-    elif api_key_input.strip():
-        with st.spinner("🤖 Gemini AI reading and analyzing job posting..."):
-            ai_result = analyze_with_ai(text_input, email_input, api_key_input.strip())
-            
-            st.markdown("---")
-            st.subheader("🎯 AI Deep Evaluation Report")
-            st.markdown(ai_result)
-
+      st.warning("⚠️ Please paste job description text to analyze.")
     else:
+      # Mode Selection: AI or Heuristic
+      if user_api_key.strip():
+        st.markdown("---")
+        st.subheader("🎯 AI Deep Evaluation Report")
+        try:
+          # Latest google-genai SDK Syntax
+          client = genai.Client(api_key=user_api_key.strip())
+
+          prompt = f"""
+                    You are an expert fraud detection AI. Analyze the following job posting and email for potential scam indicators.
+                    
+                    Job Description:
+                    "{text_input}"
+
+                    Recruiter Email:
+                    "{email_input if email_input else 'Not Provided'}"
+
+                    Provide a structured response:
+                    1. Risk Score (0 to 100)
+                    2. Risk Category (LOW RISK / MODERATE RISK / HIGH RISK)
+                    3. Key Risk Factors / Red Flags identified
+                    4. Advice for candidate
+                    """
+
+          with st.spinner("AI Engine Analyzing Content..."):
+            response = client.models.generate_content(
+                model="gemini-2.5-flash", contents=prompt
+            )
+            st.markdown(response.text)
+
+        except Exception as e:
+          st.error(f"AI Error: {e}")
+      else:
+        # Algorithmic / Heuristic Risk Scoring
         text_lower = text_input.lower()
-        email_lower = email_input.lower().strip()
+        email_lower = email_input.lower()
+        word_count = len(text_lower.split())
 
         risk_score = 0
         triggered_features = []
 
-        if is_gibberish(text_input):
+        # 1. Substring Keyword Detection
+        for word in SCAM_KEYWORDS:
+          if word in text_lower:
             risk_score += 40
-            triggered_features.append(
-                "⚠️ Invalid / Unstructured Text Warning: "
-                "Text contains meaningless gibberish or non-standard characters."
-            )
+            triggered_features.append(f"High-Risk Keyword Detected: '{word}'")
 
-        detected_flags = [
-            indicator
-            for indicator in SCAM_INDICATORS
-            if indicator in text_lower
-        ]
+        # 2. Public Domain Email Check
+        if any(domain in email_lower for domain in SUSPICIOUS_DOMAINS):
+          risk_score += 25
+          triggered_features.append(
+              "Sender Domain Alert: Unverified public email server used."
+          )
 
-        if detected_flags:
-            impact = min(len(detected_flags) * 5, 25)
-            risk_score += impact
-            triggered_features.append(
-                "🚩 Suspicious Contextual Flags Found: "
-                f"Text contains suspicious term patterns "
-                f"({', '.join(detected_flags[:5])})."
-            )
-
-        has_chat = any(
-            app in text_lower
-            for app in ["whatsapp", "telegram", "dm me", "contact on", "inbox"]
-        )
-
-        has_payment = any(
-            payment in text_lower
-            for payment in ["fee", "deposit", "pay", "registra", "charge", "invest", "upi"]
-        )
-
-        if has_chat and has_payment:
-            risk_score += 40
-            triggered_features.append(
-                "🚨 Critical Scam Pattern: "
-                "Request for payment or registration combined "
-                "with off-platform contact (WhatsApp/Telegram)."
-            )
-
-        if email_lower and any(domain in email_lower for domain in SUSPICIOUS_DOMAINS):
-            risk_score += 10
-            triggered_features.append(
-                f"📧 Public Domain Alert: Recruiter email '{email_lower}' uses a free public provider."
-            )
+        # 3. Short / Vague Description Check
+        if word_count < 10:
+          risk_score += 35
+          triggered_features.append(
+              f"Structural Anomaly: Description is too short ({word_count}"
+              " words)."
+          )
 
         risk_score = min(risk_score, 100)
 
         st.markdown("---")
         st.subheader("🎯 Scan Evaluation Report (Heuristic Mode)")
-        st.info("💡 Tip: Enter Gemini API key in sidebar for 100% accurate AI Deep Analysis.")
+        st.info(
+            "💡 Tip: Enter Gemini API key in sidebar for 100% accurate AI Deep"
+            " Analysis."
+        )
 
         st.write(f"**Aggregated Risk Score: {risk_score}/100**")
         st.progress(risk_score / 100)
 
-        if risk_score >= 50:
-            st.error("🚨 Final Classification Verdict: [ HIGH RISK / LIKELY FRAUD ]")
-        elif risk_score >= 25:
-            st.warning("⚠️ Final Classification Verdict: [ MODERATE RISK / CAUTION REQUIRED ]")
+        if risk_score >= 60:
+          st.error(
+              "🚨 Final Classification Verdict: [ HIGH RISK / FRAUD WARNING ]"
+          )
+        elif risk_score >= 30:
+          st.warning(
+              "⚠️ Final Classification Verdict: [ MODERATE RISK / CAUTION"
+              " REQUIRED ]"
+          )
         else:
-            st.success("✅ Final Classification Verdict: [ LOW RISK / LIKELY SAFE ]")
+          st.success(
+              "✅ Final Classification Verdict: [ LOW RISK / LIKELY SAFE ]"
+          )
 
-        st.markdown("### 📋 Risk Factor Analysis Breakdown")
-
-        if triggered_features:
+        with st.expander("🛠️ View System Trace Logs"):
+          if triggered_features:
             for feature in triggered_features:
-                if risk_score >= 50:
-                    st.error(feature)
-                else:
-                    st.warning(feature)
-        else:
-            st.success("✅ No suspicious risk vectors detected in textual structures.")
-
-
-st.markdown("---")
-st.header("🚀 Career Growth Hub")
-st.write(
-    "Improve your LinkedIn profile and discover skills, projects, "
-    "and certifications to increase your internship opportunities."
-)
-
-career_data = {
-    "Artificial Intelligence": {
-        "skills": ["python", "machine learning", "deep learning", "pandas", "numpy", "sql", "tensorflow", "data analysis", "git"],
-        "certificates": ["Google AI Essentials", "IBM AI Fundamentals", "Kaggle Python", "AWS Machine Learning Foundations"],
-        "projects": ["Job Scam Detection", "House Price Prediction", "Chatbot", "Face Mask Detection"],
-    },
-    "Data Science": {
-        "skills": ["python", "pandas", "numpy", "sql", "excel", "power bi", "statistics", "data visualization"],
-        "certificates": ["Google Data Analytics", "IBM Data Science Professional Certificate", "Kaggle Data Cleaning", "Microsoft Power BI"],
-        "projects": ["Sales Dashboard", "Customer Segmentation", "Movie Recommendation System", "Titanic Prediction"],
-    },
-    "Web Development": {
-        "skills": ["html", "css", "javascript", "react", "git", "node.js"],
-        "certificates": ["Meta Front-End Developer", "freeCodeCamp Responsive Web Design", "JavaScript Algorithms"],
-        "projects": ["Portfolio Website", "Weather App", "Online Quiz", "E-commerce Website"],
-    },
-    "Cybersecurity": {
-        "skills": ["network security", "linux", "python", "wireshark", "ethical hacking"],
-        "certificates": ["Google Cybersecurity", "Cisco Networking Academy", "TryHackMe Beginner Path"],
-        "projects": ["Password Strength Checker", "Network Scanner", "Phishing Detection", "Port Scanner"],
-    },
-}
-
-career = st.selectbox("Select Your Career Field", list(career_data.keys()))
-headline = st.text_input("LinkedIn Headline", placeholder="Example: AI Student | Python Developer")
-skills = st.text_area("Enter Your Skills (comma separated)", placeholder="Python, SQL, Machine Learning")
-
-if st.button("🚀 Analyze LinkedIn Profile"):
-    user_skills = [skill.strip().lower() for skill in skills.split(",") if skill.strip()]
-    score = 0
-
-    if len(headline) >= 15:
-        score += 30
-
-    matched_skills = [skill for skill in career_data[career]["skills"] if skill.lower() in user_skills]
-    score += min(len(matched_skills) * 5, 50)
-
-    if len(user_skills) >= 5:
-        score += 20
-
-    score = min(score, 100)
-    missing_skills = [skill for skill in career_data[career]["skills"] if skill.lower() not in user_skills]
-
-    st.markdown("---")
-    st.subheader("📊 LinkedIn Profile Score")
-    st.progress(score / 100)
-    st.metric("Profile Score", f"{score}/100")
-
-    if score >= 80:
-        st.success("Excellent LinkedIn Profile! You're internship-ready.")
-    elif score >= 60:
-        st.info("Good profile. A few improvements can make it stronger.")
-    else:
-        st.warning("Your profile needs improvement to attract recruiters.")
-
-    st.subheader("✅ Skills Found")
-    if matched_skills:
-        for skill in matched_skills:
-            st.success(skill.title())
-    else:
-        st.warning("No relevant skills detected.")
-
-    st.subheader("⚠ Missing Skills")
-    if missing_skills:
-        for skill in missing_skills:
-            st.error(skill.title())
-    else:
-        st.success("Amazing! No important skills missing.")
-
-    st.subheader("🎓 Recommended Certifications")
-    for cert in career_data[career]["certificates"]:
-        st.write("•", cert)
-
-    st.subheader("💻 Recommended Projects")
-    for project in career_data[career]["projects"]:
-        st.write("•", project)
+              st.write(f"- {feature}")
+          else:
+            st.write("- No obvious risk patterns found in heuristic check.")
 
 
