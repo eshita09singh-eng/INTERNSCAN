@@ -2,7 +2,7 @@ import csv
 import math
 import re
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 
 DATASET_FILE = "kaggle_scams.csv"
 
