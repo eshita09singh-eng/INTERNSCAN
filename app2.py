@@ -151,17 +151,17 @@ def evaluate_with_ai(text, email, api_key):
 def optimize_linkedin_profile(current_bio, target_role, api_key):
   if not api_key:
     return f"""
-🌟 **Professional Headline:** Aspiring {target_role} | Passionate about Innovation & Technology
+ **Professional Headline:** Aspiring {target_role} | Passionate about Innovation & Technology
 
-📝 **About / Summary:**
+ **About / Summary:**
 {current_bio}
 
-🚀 **Core Skills:**
+ **Core Skills:**
 - Problem Solving & Critical Thinking
 - Project Management & Collaboration
 - Technical Research & Data Analysis
 
-💡 *Tip: Enter a Gemini API key in the sidebar for full AI enhancement!*
+ *Tip: Enter a Gemini API key in the sidebar for full AI enhancement!*
     """
 
   try:
