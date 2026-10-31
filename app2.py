@@ -56,7 +56,7 @@ def evaluate_heuristics(text, email):
         "💰 Unrealistic Financial Structure: Abnormally high short-term / daily payout offered."
     )
 
-  # 3. Off-platform contact request
+  
   if any(
       c in text_lower
       for c in ["whatsapp", "telegram", "dm me", "contact on", "inbox"]
