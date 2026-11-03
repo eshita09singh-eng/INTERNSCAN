@@ -7,7 +7,6 @@ from google import genai
 
 DATASET_FILE = "kaggle_scams.csv"
 
-# --- SMART FALLBACK EVALUATOR ---
 def evaluate_heuristics(text, email):
     text_lower = text.lower()
     email_lower = email.lower().strip()
@@ -36,7 +35,6 @@ def evaluate_heuristics(text, email):
             "⚠️ Generic role combined with 'no experience / flexible hours' promises."
         )
 
-    # Financial and payout anomalies
     numbers = [int(n) for n in re.findall(r"\b\d+\b", text_lower)]
 
     if any(n >= 3000 for n in numbers) and any(
@@ -49,7 +47,6 @@ def evaluate_heuristics(text, email):
             "💰 Unrealistic Financial Structure: Abnormally high short-term / daily payout offered."
         )
 
-    # Off-platform contact request
     if any(
         c in text_lower for c in [
             "whatsapp", "telegram", "dm me", "contact on", "inbox"
@@ -60,7 +57,6 @@ def evaluate_heuristics(text, email):
             "🚨 Unofficial Channel: Communication redirected to messaging apps (WhatsApp/Telegram)."
         )
 
-    # Email check
     if email_lower and any(
         domain in email_lower for domain in [
             "@gmail.com", "@yahoo.com", "@outlook.com", "@hotmail.com"
@@ -71,7 +67,6 @@ def evaluate_heuristics(text, email):
             f"📧 Recruiter uses a free public domain email ('{email_lower}') instead of an official company server."
         )
 
-    # Short or vague posting
     if len(words) < 25:
         score += 20
         reasons.append(
@@ -94,7 +89,6 @@ def evaluate_heuristics(text, email):
         ]
     )
 
-# --- DEEP AI SCAN ---
 def evaluate_with_ai(text, email, api_key):
     try:
         client = genai.Client(api_key=api_key)
@@ -142,7 +136,6 @@ Respond ONLY in valid JSON format:
         st.warning(f"⚠️ AI Deep Scan fallback activated: {str(e)}")
         return evaluate_heuristics(text, email)
 
-# --- LINKEDIN PROFILE OPTIMIZER ---
 def optimize_linkedin_profile(current_bio, target_role, api_key):
     if not api_key:
         return f"""
@@ -180,7 +173,6 @@ def optimize_linkedin_profile(current_bio, target_role, api_key):
     except Exception as e:
         return f"Error generating profile: {str(e)}"
 
-# --- STREAMLIT UI ---
 st.set_page_config(
     page_title="InternScan AI",
     page_icon="🛡️",
@@ -201,7 +193,6 @@ tab1, tab2 = st.tabs([
     "💼 LinkedIn Profile Optimizer"
 ])
 
-# TAB 1: SCAM DETECTOR
 with tab1:
     st.subheader("🔍 Scan a Job Posting / Recruiter Details")
 
@@ -252,7 +243,6 @@ with tab1:
                 else:
                     st.success(reason)
 
-# TAB 2: LINKEDIN OPTIMIZER
 with tab2:
     st.subheader("💼 LinkedIn Profile & Bio Enhancer")
     st.write("Upgrade your LinkedIn 'About' description and headline.")
